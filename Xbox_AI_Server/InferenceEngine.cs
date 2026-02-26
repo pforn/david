@@ -96,10 +96,33 @@ namespace Xbox_AI_Server
                 _session = new InferenceSession(modelPath, sessionOptions);
                 Debug.WriteLine($"[InferenceEngine] InferenceSession created in {sw.ElapsedMilliseconds} ms");
 
-                // ── 3. Load BPE tokenizer ──
-                using (var tokenizerStream = File.OpenRead(tokenizerPath))
+                // ── 3. Parse tokenizer.json to extract BPE vocab and merges (v2.0.0 API) ──
+                string jsonText = File.ReadAllText(tokenizerPath);
+                using (var doc = System.Text.Json.JsonDocument.Parse(jsonText))
                 {
-                    _tokenizer = Tokenizer.CreateBpe(tokenizerStream);
+                    var modelProp = doc.RootElement.GetProperty("model");
+                    
+                    // vocab is a JSON object mapping string tokens to int IDs.
+                    // merges is a JSON array of strings ("subword1 subword2")
+                    var vocabJson = modelProp.GetProperty("vocab").GetRawText();
+                    var mergesJson = modelProp.GetProperty("merges").GetRawText();
+
+                    // V2.0.0 BpeTokenizer.Create expects two independent streams.
+                    // We can synthesize streams from the extracted JSON strings.
+                    using (var vocabStream = new MemoryStream(Encoding.UTF8.GetBytes(vocabJson)))
+                    using (var mergesStream = new MemoryStream(Encoding.UTF8.GetBytes(mergesJson)))
+                    {
+                        var mergesArray = System.Text.Json.JsonSerializer.Deserialize<string[]>(mergesJson);
+                        var mergesText = string.Join("\n", mergesArray);
+                        
+                        using (var mergesTextStream = new MemoryStream(Encoding.UTF8.GetBytes(mergesText)))
+                        {
+                            // In some libraries, mergesStream expects newline-delimited text, not a JSON array.
+                            // We provide it as newline-delimited text just in case.
+                            // The BPE tokenizer for ML.Tokenizers typically expects vocab as JSON and merges as flat text.
+                            _tokenizer = BpeTokenizer.Create(vocabStream, mergesTextStream);
+                        }
+                    }
                 }
                 Debug.WriteLine($"[InferenceEngine] Tokenizer loaded in {sw.ElapsedMilliseconds} ms");
 
