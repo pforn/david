@@ -4,9 +4,7 @@
   SDK-style (Project Sdk="Microsoft.NET.Sdk") is NOT supported for UWP apps.
 -->
 <Project ToolsVersion="15.0" DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
-
   <Import Project="$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props" Condition="Exists('$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props')" />
-
   <PropertyGroup>
     <Configuration Condition=" '$(Configuration)' == '' ">Debug</Configuration>
     <Platform Condition=" '$(Platform)' == '' ">x64</Platform>
@@ -18,7 +16,7 @@
     <DefaultLanguage>en-US</DefaultLanguage>
     <TargetPlatformIdentifier>UAP</TargetPlatformIdentifier>
     <!-- Target Windows 10 version that supports Xbox Dev Mode + DirectML -->
-    <TargetPlatformVersion>10.0.22621.0</TargetPlatformVersion>
+    <TargetPlatformVersion>10.0.26100.0</TargetPlatformVersion>
     <TargetPlatformMinVersion>10.0.17763.0</TargetPlatformMinVersion>
     <MinimumVisualStudioVersion>17.0</MinimumVisualStudioVersion>
     <FileAlignment>512</FileAlignment>
@@ -26,7 +24,6 @@
     <!-- NuGet package references use PackageReference format -->
     <RestoreProjectStyle>PackageReference</RestoreProjectStyle>
   </PropertyGroup>
-
   <!-- ─── Debug | x64 ─── -->
   <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Debug|x64'">
     <DebugSymbols>true</DebugSymbols>
@@ -38,7 +35,6 @@
     <ErrorReport>prompt</ErrorReport>
     <Optimize>false</Optimize>
   </PropertyGroup>
-
   <!-- ─── Release | x64 ─── -->
   <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Release|x64'">
     <OutputPath>bin\x64\Release\</OutputPath>
@@ -48,7 +44,6 @@
     <PlatformTarget>x64</PlatformTarget>
     <ErrorReport>prompt</ErrorReport>
   </PropertyGroup>
-
   <!-- ─── Debug | ARM64 ─── -->
   <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Debug|ARM64'">
     <DebugSymbols>true</DebugSymbols>
@@ -60,7 +55,6 @@
     <ErrorReport>prompt</ErrorReport>
     <Optimize>false</Optimize>
   </PropertyGroup>
-
   <!-- ─── Release | ARM64 ─── -->
   <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Release|ARM64'">
     <OutputPath>bin\ARM64\Release\</OutputPath>
@@ -70,7 +64,6 @@
     <PlatformTarget>ARM64</PlatformTarget>
     <ErrorReport>prompt</ErrorReport>
   </PropertyGroup>
-
   <!-- ─── NuGet Dependencies ─── -->
   <ItemGroup>
     <PackageReference Include="System.Text.Json">
@@ -83,7 +76,6 @@
       <Version>6.2.14</Version>
     </PackageReference>
   </ItemGroup>
-
   <!-- ─── C# Source Files ─── -->
   <ItemGroup>
     <Compile Include="App.xaml.cs">
@@ -95,7 +87,6 @@
     </Compile>
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>
-
   <!-- ─── XAML Pages ─── -->
   <ItemGroup>
     <ApplicationDefinition Include="App.xaml">
@@ -107,25 +98,21 @@
       <SubType>Designer</SubType>
     </Page>
   </ItemGroup>
-
   <!-- ─── Manifest ─── -->
   <ItemGroup>
     <AppxManifest Include="Package.appxmanifest">
       <SubType>Designer</SubType>
     </AppxManifest>
   </ItemGroup>
-
   <!-- ─── Runtime Directives ─── -->
   <ItemGroup>
     <SDKReference Include="WindowsMobile, Version=10.0.22621.0">
       <Name>Windows Mobile Extensions for the UWP</Name>
     </SDKReference>
   </ItemGroup>
-
   <ItemGroup>
     <None Include="Properties\Default.rd.xml" />
   </ItemGroup>
-
   <!-- ─── Assets ─── -->
   <ItemGroup>
     <Content Include="Assets\Square150x150Logo.png" />
@@ -134,19 +121,18 @@
     <Content Include="Assets\Wide310x150Logo.png" />
     <Content Include="Assets\SplashScreen.png" />
   </ItemGroup>
-
   <!-- ─── Model files: copy to output, not compiled ─── -->
   <ItemGroup>
     <Content Include="Assets\Model\**\*">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
   </ItemGroup>
-
   <!-- ─── Python utility (excluded from build) ─── -->
   <ItemGroup>
     <None Include="download_phi3.py" />
   </ItemGroup>
-
+  <ItemGroup>
+    <Folder Include="Assets\Model\" />
+  </ItemGroup>
   <Import Project="$(MSBuildExtensionsPath)\Microsoft\WindowsXaml\v$(VisualStudioVersion)\Microsoft.Windows.UI.Xaml.CSharp.targets" />
-
 </Project>
