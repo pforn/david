@@ -11,12 +11,19 @@
   </PropertyGroup>
 
   <!--
-    System.Text.Json is used for serialization in the HTTP server.
-    ONNX Runtime DirectML will be added in a later execution step.
+    System.Text.Json: HTTP server serialization
+    OnnxRuntimeGenAI.DirectML: Phi-3 generative inference on AMD GPU via DirectML
   -->
   <ItemGroup>
     <PackageReference Include="System.Text.Json" Version="8.0.0" />
-    <!-- Future: Microsoft.ML.OnnxRuntime.DirectML for Phi-3 inference -->
+    <PackageReference Include="Microsoft.ML.OnnxRuntimeGenAI.DirectML" Version="0.5.2" />
+  </ItemGroup>
+
+  <!-- Model files are copied to the output but NOT compiled -->
+  <ItemGroup>
+    <Content Include="Assets\Model\**\*">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
   </ItemGroup>
 
   <ItemGroup>

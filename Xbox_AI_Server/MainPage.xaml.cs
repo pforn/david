@@ -1,10 +1,12 @@
 using System;
+using System.Diagnostics;
 using System.IO;
 using System.Net;
 using System.Text;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
+using Windows.ApplicationModel;
 using Windows.UI.Core;
 using Windows.UI.Xaml;
 using Windows.UI.Xaml.Controls;
@@ -12,15 +14,17 @@ using Windows.UI.Xaml.Controls;
 namespace Xbox_AI_Server
 {
     /// <summary>
-    /// MainPage hosts a lightweight HTTP server on port 8080.
-    /// POST /api/prompt  →  Accepts a JSON prompt and returns a static response.
-    /// GET  /health      →  Returns 200 OK for health-check pings.
+    /// MainPage hosts the HTTP server and routes prompts to the InferenceEngine.
+    /// POST /api/prompt  →  Runs Phi-3 inference and returns the AI response.
+    /// GET  /health      →  Returns server + model status.
     /// </summary>
     public sealed partial class MainPage : Page
     {
         private HttpListener _listener;
         private CancellationTokenSource _cts;
+        private InferenceEngine _engine;
         private int _requestCount;
+        private bool _modelReady;
 
         public MainPage()
         {
@@ -34,7 +38,42 @@ namespace Xbox_AI_Server
 
         private async void MainPage_Loaded(object sender, RoutedEventArgs e)
         {
+            // Step 1: Load the ONNX model
+            await LoadModelAsync();
+
+            // Step 2: Start the HTTP server
             await StartServerAsync();
+        }
+
+        // ──────────────────────────────────────────────
+        //  Model Loading
+        // ──────────────────────────────────────────────
+
+        private async Task LoadModelAsync()
+        {
+            await UpdateStatusAsync("⏳ Loading Phi-3 model...");
+
+            try
+            {
+                _engine = new InferenceEngine();
+
+                // Resolve model path relative to the installed app package
+                string modelPath = Path.Combine(
+                    Package.Current.InstalledLocation.Path,
+                    "Assets", "Model", "directml", "directml-int4-awq-block-128");
+
+                // Load on a background thread (can take 10-30s on Xbox)
+                await Task.Run(() => _engine.LoadModel(modelPath));
+
+                _modelReady = true;
+                await UpdateStatusAsync("🧠 Phi-3 model loaded. Starting server...");
+            }
+            catch (Exception ex)
+            {
+                _modelReady = false;
+                await UpdateStatusAsync($"❌ Model load failed: {ex.Message}");
+                Debug.WriteLine($"[MainPage] Model load error: {ex}");
+            }
         }
 
         // ──────────────────────────────────────────────
@@ -51,7 +90,11 @@ namespace Xbox_AI_Server
                 _listener.Prefixes.Add("http://*:8080/");
                 _listener.Start();
 
-                await UpdateStatusAsync("✅ Server LIVE on port 8080");
+                string status = _modelReady
+                    ? "✅ Server LIVE on port 8080 — Phi-3 ready"
+                    : "⚠️ Server LIVE on port 8080 — Model NOT loaded (fallback mode)";
+
+                await UpdateStatusAsync(status);
 
                 // Begin the accept loop on a background thread
                 await Task.Run(() => AcceptLoopAsync(_cts.Token));
@@ -68,17 +111,16 @@ namespace Xbox_AI_Server
             {
                 try
                 {
-                    // Wait for an incoming request
                     var context = await _listener.GetContextAsync();
                     _ = Task.Run(() => HandleRequestAsync(context));
                 }
                 catch (ObjectDisposedException)
                 {
-                    break; // Listener was shut down
+                    break;
                 }
                 catch (HttpListenerException)
                 {
-                    break; // Listener error, bail out
+                    break;
                 }
             }
         }
@@ -97,8 +139,12 @@ namespace Xbox_AI_Server
                 // ── Health Check ──
                 if (request.HttpMethod == "GET" && request.Url.AbsolutePath == "/health")
                 {
-                    await WriteJsonResponseAsync(response, 200,
-                        new { status = "healthy", uptime = "ok" });
+                    await WriteJsonResponseAsync(response, 200, new
+                    {
+                        status = "healthy",
+                        modelLoaded = _modelReady,
+                        requestsServed = _requestCount
+                    });
                     return;
                 }
 
@@ -109,12 +155,13 @@ namespace Xbox_AI_Server
                     return;
                 }
 
-                // ── 404 for everything else ──
+                // ── 404 ──
                 await WriteJsonResponseAsync(response, 404,
                     new { error = "Not found. Use POST /api/prompt or GET /health." });
             }
             catch (Exception ex)
             {
+                Debug.WriteLine($"[MainPage] Request error: {ex}");
                 await WriteJsonResponseAsync(response, 500,
                     new { error = ex.Message });
             }
@@ -122,14 +169,14 @@ namespace Xbox_AI_Server
 
         private async Task HandlePromptAsync(HttpListenerRequest request, HttpListenerResponse response)
         {
-            // Read the incoming JSON body
+            // ── Read body ──
             string body;
             using (var reader = new StreamReader(request.InputStream, request.ContentEncoding))
             {
                 body = await reader.ReadToEndAsync();
             }
 
-            // Deserialize and validate
+            // ── Deserialize ──
             PromptRequest promptRequest;
             try
             {
@@ -150,13 +197,43 @@ namespace Xbox_AI_Server
                 return;
             }
 
-            // ── Static response for Step 1 (no ONNX yet) ──
-            var result = new PromptResponse
+            // ── Run inference or fallback ──
+            PromptResponse result;
+
+            if (_modelReady && _engine != null)
             {
-                Response = "Connection successful. Xbox API is live.",
-                TokensUsed = 0,
-                InferenceMs = 0
-            };
+                try
+                {
+                    var inferenceResult = await _engine.GenerateAsync(
+                        promptRequest.Prompt,
+                        promptRequest.MaxTokens > 0 ? promptRequest.MaxTokens : (int?)null);
+
+                    result = new PromptResponse
+                    {
+                        Response = inferenceResult.Text,
+                        TokensUsed = inferenceResult.TokensGenerated,
+                        InferenceMs = inferenceResult.InferenceMs
+                    };
+                }
+                catch (Exception ex)
+                {
+                    Debug.WriteLine($"[MainPage] Inference error: {ex}");
+                    await WriteJsonResponseAsync(response, 500,
+                        new { error = $"Inference failed: {ex.Message}" });
+                    return;
+                }
+            }
+            else
+            {
+                // Fallback: model not loaded — return echo so the network layer
+                // can still be tested end-to-end
+                result = new PromptResponse
+                {
+                    Response = $"[FALLBACK] Model not loaded. Echo: {promptRequest.Prompt}",
+                    TokensUsed = 0,
+                    InferenceMs = 0
+                };
+            }
 
             Interlocked.Increment(ref _requestCount);
             await UpdateRequestCountAsync();
@@ -201,7 +278,7 @@ namespace Xbox_AI_Server
     }
 
     // ──────────────────────────────────────────────
-    //  JSON Models (inline for now; will extract later)
+    //  JSON Models
     // ──────────────────────────────────────────────
 
     public class PromptRequest
