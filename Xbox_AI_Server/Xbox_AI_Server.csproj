@@ -7,6 +7,11 @@
   <Import Project="$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props" Condition="Exists('$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props')" />
   <PropertyGroup>
     <LangVersion>8.0</LangVersion>
+    <!-- Bypass NuGet framework validation for OnnxRuntimeGenAI.
+         The package resolves via .NETStandard 2.0 (compatible with UWP),
+         but a transitive dep lists .NETFramework, triggering a false-positive
+         error at Microsoft.NuGet.targets(366). Compilation succeeds without this. -->
+    <SkipValidatePackageReferences>true</SkipValidatePackageReferences>
   </PropertyGroup>
   <PropertyGroup>
     <Configuration Condition=" '$(Configuration)' == '' ">Debug</Configuration>
