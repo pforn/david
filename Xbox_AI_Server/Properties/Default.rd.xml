@@ -1,0 +1,35 @@
+<Directives xmlns="http://schemas.microsoft.com/netfx/2013/01/metadata">
+  <Application>
+    <!--
+      Default.rd.xml — .NET Native Runtime Directives
+      
+      This file tells the .NET Native compiler which metadata to preserve
+      at runtime for reflection, serialization, and interop scenarios.
+      
+      Required for:
+        - System.Text.Json serialization of PromptRequest / PromptResponse
+        - Windows Runtime interop
+        - Any reflection-based operations in the inference pipeline
+    -->
+
+    <!-- Preserve all public types and members for reflection -->
+    <Assembly Name="Xbox_AI_Server" Dynamic="Required All" />
+
+    <!-- System.Text.Json needs type metadata for serialization -->
+    <Assembly Name="System.Text.Json" Dynamic="Required All" />
+    <Namespace Name="System.Text.Json" Serialize="Required All" />
+
+    <!-- Windows Runtime types used by HttpListener and UWP platform -->
+    <Assembly Name="System.Runtime" Dynamic="Required All" />
+    <Assembly Name="System.Net.Http" Dynamic="Required All" />
+    <Namespace Name="System.Net" Dynamic="Required All" />
+
+    <!--
+      ONNX Runtime GenAI interop:
+      Preserve native interop metadata so .NET Native does not
+      strip the P/Invoke stubs required by OnnxRuntimeGenAI.DirectML.
+    -->
+    <Assembly Name="Microsoft.ML.OnnxRuntimeGenAI" Dynamic="Required All" />
+
+  </Application>
+</Directives>

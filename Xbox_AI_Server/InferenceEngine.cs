@@ -7,7 +7,7 @@ using Microsoft.ML.OnnxRuntimeGenAI;
 
 namespace Xbox_AI_Server
 {
-    /// &lt;summary&gt;
+    /// <summary>
     /// InferenceEngine manages the full Phi-3 ONNX lifecycle:
     ///   1. Load model from disk via OnnxRuntimeGenAI (DirectML backend)
     ///   2. Tokenize prompts using the Phi-3 chat template
@@ -16,7 +16,7 @@ namespace Xbox_AI_Server
     ///
     /// This class is thread-safe for concurrent generation requests;
     /// OnnxRuntimeGenAI handles internal synchronization.
-    /// &lt;/summary&gt;
+    /// </summary>
     public sealed class InferenceEngine : IDisposable
     {
         private Model _model;
@@ -28,27 +28,27 @@ namespace Xbox_AI_Server
         //  Configuration
         // ──────────────────────────────────────────────
 
-        /// &lt;summary&gt;Max tokens the model will generate per request.&lt;/summary&gt;
+        /// <summary>Max tokens the model will generate per request.</summary>
         public int MaxLength { get; set; } = 1024;
 
-        /// &lt;summary&gt;Sampling temperature (0.0 = greedy, 1.0 = creative).&lt;/summary&gt;
+        /// <summary>Sampling temperature (0.0 = greedy, 1.0 = creative).</summary>
         public float Temperature { get; set; } = 0.7f;
 
-        /// &lt;summary&gt;Top-P nucleus sampling threshold.&lt;/summary&gt;
+        /// <summary>Top-P nucleus sampling threshold.</summary>
         public float TopP { get; set; } = 0.9f;
 
-        /// &lt;summary&gt;Whether the model has been loaded successfully.&lt;/summary&gt;
+        /// <summary>Whether the model has been loaded successfully.</summary>
         public bool IsLoaded => _isLoaded;
 
         // ──────────────────────────────────────────────
         //  Model Loading
         // ──────────────────────────────────────────────
 
-        /// &lt;summary&gt;
+        /// <summary>
         /// Loads the ONNX model and tokenizer from the specified directory.
         /// The directory must contain the model files and tokenizer config
         /// produced by the Phi-3 ONNX export (e.g., model.onnx, genai_config.json).
-        /// &lt;/summary&gt;
+        /// </summary>
         public void LoadModel(string modelDirectoryPath)
         {
             lock (_loadLock)
@@ -82,11 +82,11 @@ namespace Xbox_AI_Server
         //  Inference
         // ──────────────────────────────────────────────
 
-        /// &lt;summary&gt;
+        /// <summary>
         /// Generates a response for the given user prompt using the Phi-3 model.
         /// Applies the standard Phi-3 chat template before tokenization.
-        /// &lt;/summary&gt;
-        public async Task&lt;InferenceResult&gt; GenerateAsync(string userPrompt)
+        /// </summary>
+        public async Task<InferenceResult> GenerateAsync(string userPrompt)
         {
             if (!_isLoaded)
                 throw new InvalidOperationException("Model is not loaded. Call LoadModel() first.");
@@ -94,16 +94,16 @@ namespace Xbox_AI_Server
             return await Task.Run(() => GenerateSync(userPrompt));
         }
 
-        /// &lt;summary&gt;
+        /// <summary>
         /// Generates a response for the given user prompt, honouring max_tokens
         /// from the incoming request if provided.
-        /// &lt;/summary&gt;
-        public async Task&lt;InferenceResult&gt; GenerateAsync(string userPrompt, int? maxTokens)
+        /// </summary>
+        public async Task<InferenceResult> GenerateAsync(string userPrompt, int? maxTokens)
         {
             if (!_isLoaded)
                 throw new InvalidOperationException("Model is not loaded. Call LoadModel() first.");
 
-            int effectiveMaxLength = maxTokens.HasValue &amp;&amp; maxTokens.Value > 0
+            int effectiveMaxLength = maxTokens.HasValue && maxTokens.Value > 0
                 ? Math.Min(maxTokens.Value, 4096)
                 : MaxLength;
 
@@ -155,28 +155,28 @@ namespace Xbox_AI_Server
         //  Prompt Formatting
         // ──────────────────────────────────────────────
 
-        /// &lt;summary&gt;
+        /// <summary>
         /// Wraps the user prompt in the standard Phi-3 instruct template.
         ///
         /// Format:
-        ///   &lt;|user|&gt;
-        ///   {prompt}&lt;|end|&gt;
-        ///   &lt;|assistant|&gt;
-        /// &lt;/summary&gt;
+        ///   <|user|>
+        ///   {prompt}<|end|>
+        ///   <|assistant|>
+        /// </summary>
         private static string FormatPhi3Prompt(string userPrompt)
         {
             var sb = new StringBuilder();
-            sb.AppendLine("&lt;|user|&gt;");
+            sb.AppendLine("<|user|>");
             sb.Append(userPrompt);
-            sb.AppendLine("&lt;|end|&gt;");
-            sb.Append("&lt;|assistant|&gt;");
+            sb.AppendLine("<|end|>");
+            sb.Append("<|assistant|>");
             return sb.ToString();
         }
 
-        /// &lt;summary&gt;
+        /// <summary>
         /// Strips the echoed prompt prefix and any trailing special tokens
         /// from the decoded output to isolate the assistant's response.
-        /// &lt;/summary&gt;
+        /// </summary>
         private static string ExtractAssistantResponse(string fullOutput, string formattedPrompt)
         {
             // The decoded output often starts with the input prompt echoed back.
@@ -190,14 +190,14 @@ namespace Xbox_AI_Server
 
             // Also try matching on the assistant tag alone (some decode paths
             // may not echo the full prompt verbatim).
-            int assistantTagIndex = response.IndexOf("&lt;|assistant|&gt;", StringComparison.Ordinal);
+            int assistantTagIndex = response.IndexOf("<|assistant|>", StringComparison.Ordinal);
             if (assistantTagIndex >= 0)
             {
-                response = response.Substring(assistantTagIndex + "&lt;|assistant|&gt;".Length);
+                response = response.Substring(assistantTagIndex + "<|assistant|>".Length);
             }
 
             // Strip trailing end token if present
-            int endTagIndex = response.IndexOf("&lt;|end|&gt;", StringComparison.Ordinal);
+            int endTagIndex = response.IndexOf("<|end|>", StringComparison.Ordinal);
             if (endTagIndex >= 0)
             {
                 response = response.Substring(0, endTagIndex);
@@ -220,18 +220,18 @@ namespace Xbox_AI_Server
         }
     }
 
-    /// &lt;summary&gt;
+    /// <summary>
     /// Encapsulates the result of a single inference call.
-    /// &lt;/summary&gt;
+    /// </summary>
     public class InferenceResult
     {
-        /// &lt;summary&gt;The decoded text generated by the model.&lt;/summary&gt;
+        /// <summary>The decoded text generated by the model.</summary>
         public string Text { get; set; }
 
-        /// &lt;summary&gt;Number of new tokens generated (excludes input tokens).&lt;/summary&gt;
+        /// <summary>Number of new tokens generated (excludes input tokens).</summary>
         public int TokensGenerated { get; set; }
 
-        /// &lt;summary&gt;Wall-clock time for the full inference pipeline in ms.&lt;/summary&gt;
+        /// <summary>Wall-clock time for the full inference pipeline in ms.</summary>
         public long InferenceMs { get; set; }
     }
 }
