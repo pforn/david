@@ -126,7 +126,7 @@
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
     <Content Include="Assets\Model\directml\directml-int4-awq-block-128\model.onnx.data">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <CopyToOutputDirectory>Never</CopyToOutputDirectory>
     </Content>
     <Content Include="Assets\Model\directml\directml-int4-awq-block-128\genai_config.json">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
