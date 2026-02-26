@@ -1,0 +1,28 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>uap10.0.19041</TargetFramework>
+    <TargetPlatformMinVersion>10.0.17763.0</TargetPlatformMinVersion>
+    <OutputType>AppContainerExe</OutputType>
+    <RootNamespace>Xbox_AI_Server</RootNamespace>
+    <AssemblyName>Xbox_AI_Server</AssemblyName>
+    <DefaultLanguage>en-US</DefaultLanguage>
+    <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
+  </PropertyGroup>
+
+  <!--
+    System.Text.Json is used for serialization in the HTTP server.
+    ONNX Runtime DirectML will be added in a later execution step.
+  -->
+  <ItemGroup>
+    <PackageReference Include="System.Text.Json" Version="8.0.0" />
+    <!-- Future: Microsoft.ML.OnnxRuntime.DirectML for Phi-3 inference -->
+  </ItemGroup>
+
+  <ItemGroup>
+    <AppxManifest Include="Package.appxmanifest">
+      <SubType>Designer</SubType>
+    </AppxManifest>
+  </ItemGroup>
+
+</Project>

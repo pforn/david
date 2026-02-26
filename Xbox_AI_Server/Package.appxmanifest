@@ -1,0 +1,79 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Package
+  xmlns="http://schemas.microsoft.com/appx/manifest/foundation/windows10"
+  xmlns:mp="http://schemas.microsoft.com/appx/2014/phone/manifest"
+  xmlns:uap="http://schemas.microsoft.com/appx/manifest/uap/windows10"
+  xmlns:rescap="http://schemas.microsoft.com/appx/manifest/foundation/windows10/restrictedcapabilities"
+  xmlns:desktop="http://schemas.microsoft.com/appx/manifest/desktop/windows10"
+  IgnorableNamespaces="uap mp rescap desktop">
+
+  <Identity
+    Name="Jarvis.XboxAIServer"
+    Publisher="CN=JarvisProject"
+    Version="1.0.0.0" />
+
+  <mp:PhoneIdentity PhoneProductId="a1b2c3d4-e5f6-7890-abcd-ef1234567890"
+                    PhonePublisherId="00000000-0000-0000-0000-000000000000" />
+
+  <Properties>
+    <DisplayName>Jarvis Xbox AI Server</DisplayName>
+    <PublisherDisplayName>JarvisProject</PublisherDisplayName>
+    <Logo>Assets\StoreLogo.png</Logo>
+  </Properties>
+
+  <Dependencies>
+    <TargetDeviceFamily Name="Windows.Universal"
+                        MinVersion="10.0.0.0"
+                        MaxVersionTested="10.0.22621.0" />
+  </Dependencies>
+
+  <Resources>
+    <Resource Language="x-generate" />
+  </Resources>
+
+  <!--
+    ============================================================
+    CRITICAL: AppListEntry="Game"
+    This forces the Xbox to treat the app as a Game title,
+    bypassing the standard UWP memory sandbox and unlocking
+    access to the full 10 GB of VRAM.
+    ============================================================
+  -->
+  <Applications>
+    <Application Id="App"
+                 Executable="$targetnametoken$.exe"
+                 EntryPoint="Xbox_AI_Server.App"
+                 desktop:AppListEntry="Game">
+
+      <uap:VisualElements
+        DisplayName="Jarvis AI Server"
+        Description="Local LLM inference server for Project Jarvis"
+        BackgroundColor="transparent"
+        Square150x150Logo="Assets\Square150x150Logo.png"
+        Square44x44Logo="Assets\Square44x44Logo.png">
+
+        <uap:DefaultTile Wide310x150Logo="Assets\Wide310x150Logo.png" />
+        <uap:SplashScreen Image="Assets\SplashScreen.png" />
+      </uap:VisualElements>
+    </Application>
+  </Applications>
+
+  <!--
+    ============================================================
+    CAPABILITIES
+    - internetClientServer: Required for HttpListener to accept
+      inbound connections on port 8080.
+    - privateNetworkClientServer: Required for Tailscale /
+      local network communication.
+    - runFullTrust (restricted): Grants full-trust execution,
+      required for HttpListener and unrestricted memory access.
+    ============================================================
+  -->
+  <Capabilities>
+    <Capability Name="internetClient" />
+    <Capability Name="internetClientServer" />
+    <Capability Name="privateNetworkClientServer" />
+    <rescap:Capability Name="runFullTrust" />
+  </Capabilities>
+
+</Package>
