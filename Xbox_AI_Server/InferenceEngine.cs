@@ -119,26 +119,32 @@ namespace Xbox_AI_Server
 
             // ── 2. Tokenize ──
             var sequences = _tokenizer.Encode(formattedPrompt);
+            int inputTokenCount = sequences[0].Length;
 
             // ── 3. Configure generation parameters ──
             using var generatorParams = new GeneratorParams(_model);
             generatorParams.SetSearchOption("max_length", overrideMaxLength ?? MaxLength);
             generatorParams.SetSearchOption("temperature", Temperature);
             generatorParams.SetSearchOption("top_p", TopP);
-            generatorParams.SetInputSequences(sequences);
 
-            // ── 4. Generate tokens ──
-            var outputSequences = _model.Generate(generatorParams);
+            // ── 4. Generate tokens (v0.8+ Generator API) ──
+            using var generator = new Generator(_model, generatorParams);
+            generator.AppendTokenSequences(sequences);
+
+            while (!generator.IsDone())
+            {
+                generator.GenerateNextToken();
+            }
 
             // ── 5. Decode output ──
-            string fullOutput = _tokenizer.Decode(outputSequences[0]);
+            var outputSequence = generator.GetSequence(0);
+            string fullOutput = _tokenizer.Decode(outputSequence);
             string assistantResponse = ExtractAssistantResponse(fullOutput, formattedPrompt);
 
             sw.Stop();
 
             // ── 6. Count generated tokens (output - input) ──
-            int inputTokenCount = sequences[0].Length;
-            int outputTokenCount = outputSequences[0].Length;
+            int outputTokenCount = outputSequence.Length;
             int generatedTokens = outputTokenCount - inputTokenCount;
 
             Debug.WriteLine($"[InferenceEngine] Generated {generatedTokens} tokens in {sw.ElapsedMilliseconds} ms");
