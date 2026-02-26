@@ -120,33 +120,15 @@
     <Content Include="Assets\Wide310x150Logo.png" />
     <Content Include="Assets\SplashScreen.png" />
   </ItemGroup>
-  <!-- ─── Model files: copy to output, not compiled ─── -->
-  <ItemGroup>
-    <Content Include="Assets\Model\directml\directml-int4-awq-block-128\model.onnx">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </Content>
-    <Content Include="Assets\Model\directml\directml-int4-awq-block-128\model.onnx.data">
-      <CopyToOutputDirectory>Never</CopyToOutputDirectory>
-    </Content>
-    <Content Include="Assets\Model\directml\directml-int4-awq-block-128\genai_config.json">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </Content>
-    <Content Include="Assets\Model\directml\directml-int4-awq-block-128\tokenizer.json">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </Content>
-    <Content Include="Assets\Model\directml\directml-int4-awq-block-128\tokenizer_config.json">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </Content>
-    <Content Include="Assets\Model\directml\directml-int4-awq-block-128\special_tokens_map.json">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </Content>
-  </ItemGroup>
+  <!--
+    Model files (2 GB+) are NOT bundled in the AppX package.
+    They are deployed once to Xbox LocalState via DeployModel.ps1.
+    See DeployModel.ps1 for the one-time sideload procedure.
+  -->
   <!-- ─── Python utility (excluded from build) ─── -->
   <ItemGroup>
     <None Include="download_phi3.py" />
   </ItemGroup>
-  <ItemGroup>
-    <Folder Include="Assets\Model\" />
-  </ItemGroup>
+
   <Import Project="$(MSBuildExtensionsPath)\Microsoft\WindowsXaml\v$(VisualStudioVersion)\Microsoft.Windows.UI.Xaml.CSharp.targets" />
 </Project>

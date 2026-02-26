@@ -1,0 +1,19 @@
+# ──────────────────────────────────────────
+#  Build output
+# ──────────────────────────────────────────
+bin/
+obj/
+.vs/
+
+# ──────────────────────────────────────────
+#  Large model files (deployed separately)
+# ──────────────────────────────────────────
+Assets/Model/directml/directml-int4-awq-block-128/model.onnx.data
+Assets/Model/directml/directml-int4-awq-block-128/model.onnx
+
+# ──────────────────────────────────────────
+#  Never commit credentials or secrets
+# ──────────────────────────────────────────
+*.credential
+*.secret
+.env

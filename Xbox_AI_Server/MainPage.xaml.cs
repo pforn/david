@@ -51,16 +51,26 @@ namespace Xbox_AI_Server
 
         private async Task LoadModelAsync()
         {
-            await UpdateStatusAsync("⏳ Loading Phi-3 model...");
+            await UpdateStatusAsync("⏳ Locating Phi-3 model...");
 
             try
             {
                 _engine = new InferenceEngine();
 
-                // Resolve model path relative to the installed app package
-                string modelPath = Path.Combine(
-                    Package.Current.InstalledLocation.Path,
-                    "Assets", "Model", "directml", "directml-int4-awq-block-128");
+                // ── Model discovery: LocalState first, package fallback ──
+                string modelPath = ResolveModelPath();
+
+                if (modelPath == null)
+                {
+                    _modelReady = false;
+                    await UpdateStatusAsync(
+                        "❌ Model not found. Run DeployModel.ps1 to push the model to this Xbox.");
+                    Debug.WriteLine("[MainPage] Model not found in LocalState or package.");
+                    return;
+                }
+
+                Debug.WriteLine($"[MainPage] Loading model from: {modelPath}");
+                await UpdateStatusAsync($"⏳ Loading Phi-3 from {(modelPath.Contains("LocalState") ? "LocalState" : "package")}...");
 
                 // Load on a background thread (can take 10-30s on Xbox)
                 await Task.Run(() => _engine.LoadModel(modelPath));
@@ -74,6 +84,43 @@ namespace Xbox_AI_Server
                 await UpdateStatusAsync($"❌ Model load failed: {ex.Message}");
                 Debug.WriteLine($"[MainPage] Model load error: {ex}");
             }
+        }
+
+        /// <summary>
+        /// Resolves the model directory path using a two-tier search:
+        ///   1. LocalState\DavidModel\directml-int4-awq-block-128  (Xbox sideloaded)
+        ///   2. Package\Assets\Model\directml\directml-int4-awq-block-128  (dev fallback)
+        /// Returns null if neither location contains the model.
+        /// </summary>
+        private static string ResolveModelPath()
+        {
+            const string modelMarkerFile = "genai_config.json";
+
+            // ── 1. Primary: Xbox LocalState (deployed via DeployModel.ps1) ──
+            string localStatePath = Path.Combine(
+                Windows.Storage.ApplicationData.Current.LocalFolder.Path,
+                "DavidModel", "directml-int4-awq-block-128");
+
+            if (Directory.Exists(localStatePath) &&
+                File.Exists(Path.Combine(localStatePath, modelMarkerFile)))
+            {
+                Debug.WriteLine($"[MainPage] Model found in LocalState: {localStatePath}");
+                return localStatePath;
+            }
+
+            // ── 2. Fallback: Package install location (local dev / small models) ──
+            string packagePath = Path.Combine(
+                Package.Current.InstalledLocation.Path,
+                "Assets", "Model", "directml", "directml-int4-awq-block-128");
+
+            if (Directory.Exists(packagePath) &&
+                File.Exists(Path.Combine(packagePath, modelMarkerFile)))
+            {
+                Debug.WriteLine($"[MainPage] Model found in package: {packagePath}");
+                return packagePath;
+            }
+
+            return null;
         }
 
         // ──────────────────────────────────────────────
