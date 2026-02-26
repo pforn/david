@@ -32,7 +32,7 @@ BundleArtifacts/
 # Visual Studio caches
 .vs/
 
-# Project Jarvis specific ignores
+# Project David specific ignores
 # Ignore the large ONNX model weights and binaries, 
 # but keep the rest of the Assets/ folder intact for UWP App Icons
 Xbox_AI_Server/Assets/Model/

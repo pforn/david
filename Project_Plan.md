@@ -1,8 +1,8 @@
-# Project Jarvis — System Architecture & Project Plan
+# Project David — System Architecture & Project Plan
 
 ## Overview
 
-Jarvis is a distributed, 3-node AI assistant designed for **high-speed local inference** and **agentic web orchestration**. The system spans heterogeneous hardware connected via a Tailscale mesh network.
+David is a distributed, 3-node AI assistant designed for **high-speed local inference** and **agentic web orchestration**. The system spans heterogeneous hardware connected via a Tailscale mesh network.
 
 | Node | Hardware | Role | Stack |
 |------|----------|------|-------|
@@ -53,17 +53,17 @@ Jarvis is a distributed, 3-node AI assistant designed for **high-speed local inf
 ## Directory Structure
 
 ```
-jarvis/
+david/
 │
 ├── README.md                          # Top-level project overview
 ├── Project_Plan.md                    # ← This file
 │
 ├── node1-xbox/                        # ── NODE 1: COMPUTE ENGINE ──
 │   │
-│   ├── JarvisInference/               # UWP C# project root
-│   │   ├── JarvisInference.sln        # Visual Studio solution
+│   ├── DavidInference/               # UWP C# project root
+│   │   ├── DavidInference.sln        # Visual Studio solution
 │   │   │
-│   │   ├── JarvisInference/           # Main UWP app project
+│   │   ├── DavidInference/           # Main UWP app project
 │   │   │   ├── App.xaml               # Application entry point
 │   │   │   ├── App.xaml.cs
 │   │   │   ├── MainPage.xaml          # Minimal status UI
@@ -88,7 +88,7 @@ jarvis/
 │   │   │   └── Package.appxmanifest       # ⚠ MUST include AppListEntry="Game"
 │   │   │                                  #   to unlock 10 GB VRAM sandbox
 │   │   │
-│   │   └── JarvisInference.Tests/         # Unit tests (optional xUnit/MSTest)
+│   │   └── DavidInference.Tests/         # Unit tests (optional xUnit/MSTest)
 │   │       └── InferenceEngineTests.cs
 │   │
 │   ├── models/                            # Git-ignored; large model binaries
@@ -161,7 +161,7 @@ jarvis/
 
 ## Next Steps
 
-- [ ] Scaffold the `node1-xbox/JarvisInference` UWP project
+- [ ] Scaffold the `node1-xbox/DavidInference` UWP project
 - [ ] Configure `Package.appxmanifest` with `AppListEntry="Game"`
 - [ ] Implement `HttpPromptServer.cs` (receive prompts on :8080)
 - [ ] Implement `OnnxModelLoader.cs` + `InferenceEngine.cs`

@@ -9,7 +9,7 @@ using Windows.UI.Xaml.Navigation;
 namespace Xbox_AI_Server
 {
     /// <summary>
-    /// UWP Application lifecycle manager for the Jarvis Xbox AI Server.
+    /// UWP Application lifecycle manager for the David Xbox AI Server.
     ///
     /// Key design goal: The app must NEVER suspend. Suspension would kill the
     /// HttpListener, making the Xbox unreachable on the network. We use two
@@ -77,7 +77,7 @@ namespace Xbox_AI_Server
             var session = new ExtendedExecutionSession
             {
                 Reason = ExtendedExecutionReason.Unspecified,
-                Description = "Jarvis AI Server must remain active to serve HTTP requests."
+                Description = "David AI Server must remain active to serve HTTP requests."
             };
 
             session.Revoked += ExtendedSession_Revoked;
@@ -87,18 +87,18 @@ namespace Xbox_AI_Server
             if (result == ExtendedExecutionResult.Allowed)
             {
                 _extendedSession = session;
-                System.Diagnostics.Debug.WriteLine("[Jarvis] Extended execution GRANTED — server will not suspend.");
+                System.Diagnostics.Debug.WriteLine("[David] Extended execution GRANTED — server will not suspend.");
             }
             else
             {
                 session.Dispose();
-                System.Diagnostics.Debug.WriteLine("[Jarvis] Extended execution DENIED — app may suspend when minimized.");
+                System.Diagnostics.Debug.WriteLine("[David] Extended execution DENIED — app may suspend when minimized.");
             }
         }
 
         private void ExtendedSession_Revoked(object sender, ExtendedExecutionRevokedEventArgs args)
         {
-            System.Diagnostics.Debug.WriteLine($"[Jarvis] Extended execution REVOKED. Reason: {args.Reason}");
+            System.Diagnostics.Debug.WriteLine($"[David] Extended execution REVOKED. Reason: {args.Reason}");
 
             // If revoked due to system policy, try to re-acquire immediately
             if (args.Reason == ExtendedExecutionRevokedReason.SystemPolicy)
@@ -126,7 +126,7 @@ namespace Xbox_AI_Server
             // Get a deferral so the system waits for us to finish
             var deferral = e.GetDeferral();
 
-            System.Diagnostics.Debug.WriteLine("[Jarvis] Entered background — ensuring extended execution.");
+            System.Diagnostics.Debug.WriteLine("[David] Entered background — ensuring extended execution.");
             await RequestExtendedExecutionAsync();
 
             deferral.Complete();
@@ -134,7 +134,7 @@ namespace Xbox_AI_Server
 
         private void OnLeavingBackground(object sender, LeavingBackgroundEventArgs e)
         {
-            System.Diagnostics.Debug.WriteLine("[Jarvis] Returning to foreground.");
+            System.Diagnostics.Debug.WriteLine("[David] Returning to foreground.");
         }
 
         // ──────────────────────────────────────────────
@@ -146,7 +146,7 @@ namespace Xbox_AI_Server
             // Last-ditch attempt to stay alive
             var deferral = e.SuspendingOperation.GetDeferral();
 
-            System.Diagnostics.Debug.WriteLine("[Jarvis] Suspension requested — attempting to block.");
+            System.Diagnostics.Debug.WriteLine("[David] Suspension requested — attempting to block.");
             await RequestExtendedExecutionAsync();
 
             deferral.Complete();

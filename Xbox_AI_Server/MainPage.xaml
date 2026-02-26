@@ -7,7 +7,7 @@
     <Grid Padding="40">
         <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center">
 
-            <TextBlock Text="🤖 JARVIS — Xbox AI Server"
+            <TextBlock Text="🤖 DAVID — Xbox AI Server"
                        FontSize="32"
                        FontWeight="Bold"
                        HorizontalAlignment="Center"
