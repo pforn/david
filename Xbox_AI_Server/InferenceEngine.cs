@@ -1,43 +1,53 @@
 using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
+using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
-using Microsoft.ML.OnnxRuntimeGenAI;
+using Microsoft.ML.OnnxRuntime;
+using Microsoft.ML.OnnxRuntime.Tensors;
+using Microsoft.ML.Tokenizers;
 
 namespace Xbox_AI_Server
 {
     /// <summary>
-    /// InferenceEngine manages the full Phi-3 ONNX lifecycle:
-    ///   1. Load model from disk via OnnxRuntimeGenAI (DirectML backend)
-    ///   2. Tokenize prompts using the Phi-3 chat template
-    ///   3. Generate response tokens with configurable search params
-    ///   4. Decode and return the plain-text response
+    /// InferenceEngine manages the full Phi-3 ONNX lifecycle using the base
+    /// OnnxRuntime (no GenAI layer) to stay within Xbox UWP sandbox constraints:
     ///
-    /// This class is thread-safe for concurrent generation requests;
-    /// OnnxRuntimeGenAI handles internal synchronization.
+    ///   1. Load model.onnx via InferenceSession with DirectML execution provider
+    ///   2. Load tokenizer via Microsoft.ML.Tokenizers (BPE from tokenizer.json)
+    ///   3. Run a manual greedy autoregressive decoding loop
+    ///   4. Decode output token IDs back to plain text
+    ///
+    /// All memory is managed (.NET heap only). No unsafe blocks, no Win32 P/Invoke.
     /// </summary>
     public sealed class InferenceEngine : IDisposable
     {
-        private Model _model;
-        private Tokenizer _tokenizer;
-        private bool _isLoaded;
-        private readonly object _loadLock = new object();
+        // ── ONNX tensor / model names for Phi-3 Mini ONNX export ──────────────
+        // These match the standard Hugging Face Optimum ONNX export of Phi-3 Mini.
+        // Verify with: onnxruntime Python → sess.get_inputs() / sess.get_outputs()
+        private const string InputIdsName        = "input_ids";
+        private const string AttentionMaskName   = "attention_mask";
+        private const string LogitsOutputName    = "logits";
+
+        // Phi-3 Mini EOS token ID — matches `<|end|>` in its tokenizer.
+        // Value 32007 is the standard EOS for the Phi-3 instruct chat template.
+        private const int EosTokenId = 32007;
+
+        private InferenceSession _session;
+        private Tokenizer        _tokenizer;
+        private bool             _isLoaded;
+        private readonly object  _loadLock = new object();
 
         // ──────────────────────────────────────────────
         //  Configuration
         // ──────────────────────────────────────────────
 
-        /// <summary>Max tokens the model will generate per request.</summary>
+        /// <summary>Max new tokens the model will generate per request.</summary>
         public int MaxLength { get; set; } = 1024;
 
-        /// <summary>Sampling temperature (0.0 = greedy, 1.0 = creative).</summary>
-        public float Temperature { get; set; } = 0.7f;
-
-        /// <summary>Top-P nucleus sampling threshold.</summary>
-        public float TopP { get; set; } = 0.9f;
-
-        /// <summary>Whether the model has been loaded successfully.</summary>
+        /// <summary>Whether the model and tokenizer have been loaded successfully.</summary>
         public bool IsLoaded => _isLoaded;
 
         // ──────────────────────────────────────────────
@@ -45,9 +55,10 @@ namespace Xbox_AI_Server
         // ──────────────────────────────────────────────
 
         /// <summary>
-        /// Loads the ONNX model and tokenizer from the specified directory.
-        /// The directory must contain the model files and tokenizer config
-        /// produced by the Phi-3 ONNX export (e.g., model.onnx, genai_config.json).
+        /// Loads the ONNX model and BPE tokenizer from the specified directory.
+        /// The directory must contain:
+        ///   - model.onnx          (the ONNX export of Phi-3 Mini)
+        ///   - tokenizer.json      (HuggingFace BPE vocab/merges)
         /// </summary>
         public void LoadModel(string modelDirectoryPath)
         {
@@ -60,26 +71,46 @@ namespace Xbox_AI_Server
                 }
 
                 if (!Directory.Exists(modelDirectoryPath))
-                {
                     throw new DirectoryNotFoundException(
                         $"Model directory not found: {modelDirectoryPath}");
-                }
+
+                string modelPath     = Path.Combine(modelDirectoryPath, "model.onnx");
+                string tokenizerPath = Path.Combine(modelDirectoryPath, "tokenizer.json");
+
+                if (!File.Exists(modelPath))
+                    throw new FileNotFoundException(
+                        $"model.onnx not found in: {modelDirectoryPath}", modelPath);
+
+                if (!File.Exists(tokenizerPath))
+                    throw new FileNotFoundException(
+                        $"tokenizer.json not found in: {modelDirectoryPath}", tokenizerPath);
 
                 Debug.WriteLine($"[InferenceEngine] Loading model from: {modelDirectoryPath}");
                 var sw = Stopwatch.StartNew();
 
-                _model = new Model(modelDirectoryPath);
-                _tokenizer = new Tokenizer(_model);
+                // ── 1. Session options — DirectML EP (GPU acceleration on Xbox) ──
+                var sessionOptions = new SessionOptions();
+                sessionOptions.AppendExecutionProvider_DML(deviceId: 0);
+
+                // ── 2. Load ONNX model ──
+                _session = new InferenceSession(modelPath, sessionOptions);
+                Debug.WriteLine($"[InferenceEngine] InferenceSession created in {sw.ElapsedMilliseconds} ms");
+
+                // ── 3. Load BPE tokenizer ──
+                using (var tokenizerStream = File.OpenRead(tokenizerPath))
+                {
+                    _tokenizer = BpeTokenizer.Create(tokenizerStream);
+                }
+                Debug.WriteLine($"[InferenceEngine] Tokenizer loaded in {sw.ElapsedMilliseconds} ms");
 
                 sw.Stop();
-                Debug.WriteLine($"[InferenceEngine] Model loaded in {sw.ElapsedMilliseconds} ms");
-
                 _isLoaded = true;
+                Debug.WriteLine($"[InferenceEngine] Total load time: {sw.ElapsedMilliseconds} ms");
             }
         }
 
         // ──────────────────────────────────────────────
-        //  Inference
+        //  Inference (Public API — same contract as before)
         // ──────────────────────────────────────────────
 
         /// <summary>
@@ -91,7 +122,7 @@ namespace Xbox_AI_Server
             if (!_isLoaded)
                 throw new InvalidOperationException("Model is not loaded. Call LoadModel() first.");
 
-            return await Task.Run(() => GenerateSync(userPrompt));
+            return await Task.Run(() => GenerateSync(userPrompt, null));
         }
 
         /// <summary>
@@ -110,72 +141,142 @@ namespace Xbox_AI_Server
             return await Task.Run(() => GenerateSync(userPrompt, effectiveMaxLength));
         }
 
-        private InferenceResult GenerateSync(string userPrompt, int? overrideMaxLength = null)
+        // ──────────────────────────────────────────────
+        //  Core Inference — Manual Greedy Decode Loop
+        // ──────────────────────────────────────────────
+
+        private InferenceResult GenerateSync(string userPrompt, int? overrideMaxLength)
         {
             var sw = Stopwatch.StartNew();
+            int maxNewTokens = overrideMaxLength ?? MaxLength;
 
-            // ── 1. Apply Phi-3 chat template ──
+            // ── 1. Apply Phi-3 chat template and tokenize ──
             string formattedPrompt = FormatPhi3Prompt(userPrompt);
+            var    encoding        = _tokenizer.Encode(formattedPrompt);
+            var    promptTokenIds  = encoding.Ids;
 
-            // ── 2. Tokenize ──
-            var sequences = _tokenizer.Encode(formattedPrompt);
-            int inputTokenCount = sequences[0].Length;
+            // Build the running token list (prompt + generated tokens)
+            var tokenIds = new List<int>(promptTokenIds);
+            int inputLen = tokenIds.Count;
 
-            // ── 3. Configure generation parameters ──
-            using var generatorParams = new GeneratorParams(_model);
-            generatorParams.SetSearchOption("max_length", overrideMaxLength ?? MaxLength);
-            generatorParams.SetSearchOption("temperature", Temperature);
-            generatorParams.SetSearchOption("top_p", TopP);
+            Debug.WriteLine($"[InferenceEngine] Prompt tokenized to {inputLen} tokens. Running greedy decode...");
 
-            // ── 4. Generate tokens (v0.8+ Generator API) ──
-            using var generator = new Generator(_model, generatorParams);
-            generator.AppendTokenSequences(sequences);
+            int generatedCount = 0;
 
-            while (!generator.IsDone())
+            // ── 2. Greedy autoregressive loop ──
+            for (int step = 0; step < maxNewTokens; step++)
             {
-                generator.GenerateNextToken();
+                int seqLen = tokenIds.Count;
+
+                // Build input tensors — shape [1, seqLen]
+                var inputIdsTensor    = new DenseTensor<long>(new[] { 1, seqLen });
+                var attentionMaskTensor = new DenseTensor<long>(new[] { 1, seqLen });
+
+                for (int i = 0; i < seqLen; i++)
+                {
+                    inputIdsTensor[0, i]      = (long)tokenIds[i];
+                    attentionMaskTensor[0, i] = 1L;
+                }
+
+                // Build NamedOnnxValue inputs
+                var inputs = new List<NamedOnnxValue>
+                {
+                    NamedOnnxValue.CreateFromTensor(InputIdsName,      inputIdsTensor),
+                    NamedOnnxValue.CreateFromTensor(AttentionMaskName, attentionMaskTensor),
+                };
+
+                // ── 3. Run the session ──
+                IDisposableReadOnlyCollection<DisposableNamedOnnxValue> outputs;
+                try
+                {
+                    outputs = _session.Run(inputs);
+                }
+                catch (Exception ex)
+                {
+                    Debug.WriteLine($"[InferenceEngine] Session.Run failed at step {step}: {ex.Message}");
+                    throw;
+                }
+
+                using (outputs)
+                {
+                    // ── 4. Extract logits — shape [1, seqLen, vocabSize] ──
+                    var logitsTensor = outputs.First(o => o.Name == LogitsOutputName)
+                                             .AsEnumerable<float>()
+                                             .ToArray();
+
+                    int vocabSize = logitsTensor.Length / seqLen;
+
+                    // Logits for the LAST position only (autoregressive next-token)
+                    int lastTokenOffset = (seqLen - 1) * vocabSize;
+
+                    // ── 5. Greedy argmax ──
+                    int nextTokenId = ArgMax(logitsTensor, lastTokenOffset, vocabSize);
+
+                    // ── 6. Append and check for EOS ──
+                    tokenIds.Add(nextTokenId);
+                    generatedCount++;
+
+                    if (nextTokenId == EosTokenId)
+                    {
+                        Debug.WriteLine($"[InferenceEngine] EOS hit at step {step + 1}.");
+                        break;
+                    }
+                }
             }
 
-            // ── 5. Decode output ──
-            var outputSequence = generator.GetSequence(0);
-            string fullOutput = _tokenizer.Decode(outputSequence);
-            string assistantResponse = ExtractAssistantResponse(fullOutput, formattedPrompt);
-
             sw.Stop();
+            Debug.WriteLine($"[InferenceEngine] Generated {generatedCount} tokens in {sw.ElapsedMilliseconds} ms");
 
-            // ── 6. Count generated tokens (output - input) ──
-            int outputTokenCount = outputSequence.Length;
-            int generatedTokens = outputTokenCount - inputTokenCount;
-
-            Debug.WriteLine($"[InferenceEngine] Generated {generatedTokens} tokens in {sw.ElapsedMilliseconds} ms");
+            // ── 7. Decode generated tokens (exclude prompt tokens) ──
+            var generatedIds = tokenIds.Skip(inputLen).ToArray();
+            string decodedText = _tokenizer.Decode(generatedIds) ?? string.Empty;
+            string assistantResponse = StripSpecialTokens(decodedText).Trim();
 
             return new InferenceResult
             {
-                Text = assistantResponse.Trim(),
-                TokensGenerated = generatedTokens,
-                InferenceMs = sw.ElapsedMilliseconds
+                Text            = assistantResponse,
+                TokensGenerated = generatedCount,
+                InferenceMs     = sw.ElapsedMilliseconds
             };
         }
 
         // ──────────────────────────────────────────────
-        //  Prompt Formatting
+        //  Helpers
         // ──────────────────────────────────────────────
 
         /// <summary>
-        /// Wraps the user prompt in the standard Phi-3 instruct template.
-        ///
-        /// Format:
-        ///   <|user|>
-        ///   {prompt}<|end|>
-        ///   <|assistant|>
+        /// Finds the index of the maximum value within a slice of the array.
+        /// Used for greedy decoding (argmax over vocabulary logits).
+        /// </summary>
+        private static int ArgMax(float[] array, int offset, int length)
+        {
+            int   bestIdx   = 0;
+            float bestVal   = float.MinValue;
+
+            for (int i = 0; i < length; i++)
+            {
+                float val = array[offset + i];
+                if (val > bestVal)
+                {
+                    bestVal = val;
+                    bestIdx = i;
+                }
+            }
+
+            return bestIdx;
+        }
+
+        /// <summary>
+        /// Wraps the user prompt in the Phi-3 instruct chat template.
+        /// Format: &lt;|user|&gt;\n{prompt}&lt;|end|&gt;\n&lt;|assistant|&gt;
         /// </summary>
         private static string FormatPhi3Prompt(string userPrompt)
         {
             var sb = new StringBuilder();
-            sb.AppendLine("<|user|>");
+            sb.Append("<|user|>\n");
             sb.Append(userPrompt);
-            sb.AppendLine("<|end|>");
-            sb.Append("<|assistant|>");
+            sb.Append("<|end|>\n");
+            sb.Append("<|assistant|>\n");
             return sb.ToString();
         }
 
@@ -183,23 +284,15 @@ namespace Xbox_AI_Server
         /// Strips the echoed prompt prefix and any trailing special tokens
         /// from the decoded output to isolate the assistant's response.
         /// </summary>
-        private static string ExtractAssistantResponse(string fullOutput, string formattedPrompt)
+        private static string StripSpecialTokens(string fullOutput)
         {
-            // The decoded output often starts with the input prompt echoed back.
-            // Remove it to get only what the model generated.
             string response = fullOutput;
 
-            if (response.StartsWith(formattedPrompt, StringComparison.Ordinal))
-            {
-                response = response.Substring(formattedPrompt.Length);
-            }
-
-            // Also try matching on the assistant tag alone (some decode paths
-            // may not echo the full prompt verbatim).
+            // Try matching on the assistant tag
             int assistantTagIndex = response.IndexOf("<|assistant|>", StringComparison.Ordinal);
             if (assistantTagIndex >= 0)
             {
-                response = response.Substring(assistantTagIndex + "<|assistant|>".Length);
+                response = response.Substring(assistantTagIndex + "<|assistant|>".Length).TrimStart();
             }
 
             // Strip trailing end token if present
@@ -218,11 +311,10 @@ namespace Xbox_AI_Server
 
         public void Dispose()
         {
-            _tokenizer?.Dispose();
-            _model?.Dispose();
+            _session?.Dispose();
             _isLoaded = false;
 
-            Debug.WriteLine("[InferenceEngine] Disposed.");
+            System.Diagnostics.Debug.WriteLine("[InferenceEngine] Disposed.");
         }
     }
 

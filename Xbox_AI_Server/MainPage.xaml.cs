@@ -94,7 +94,7 @@ namespace Xbox_AI_Server
         /// </summary>
         private static string ResolveModelPath()
         {
-            const string modelMarkerFile = "genai_config.json";
+            const string modelMarkerFile = "model.onnx";
 
             // ── 1. Primary: Xbox LocalState (deployed via DeployModel.ps1) ──
             string localStatePath = Path.Combine(
