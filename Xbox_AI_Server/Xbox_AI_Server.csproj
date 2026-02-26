@@ -72,7 +72,7 @@
     <PackageReference Include="System.Text.Json">
       <Version>8.0.5</Version>
     </PackageReference>
-    <PackageReference Include="Microsoft.ML.OnnxRuntimeGenAI.DirectML">
+    <PackageReference Include="Microsoft.ML.OnnxRuntimeGenAI.WinML">
       <Version>0.5.2</Version>
     </PackageReference>
     <PackageReference Include="Microsoft.NETCore.UniversalWindowsPlatform">
