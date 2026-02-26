@@ -67,7 +67,7 @@
   <!-- ─── NuGet Dependencies ─── -->
   <ItemGroup>
     <PackageReference Include="System.Text.Json">
-      <Version>8.0.0</Version>
+      <Version>8.0.5</Version>
     </PackageReference>
     <PackageReference Include="Microsoft.ML.OnnxRuntimeGenAI.DirectML">
       <Version>0.5.2</Version>
