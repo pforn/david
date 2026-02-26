@@ -99,7 +99,7 @@ namespace Xbox_AI_Server
                 // ── 3. Load BPE tokenizer ──
                 using (var tokenizerStream = File.OpenRead(tokenizerPath))
                 {
-                    _tokenizer = BpeTokenizer.Create(tokenizerStream);
+                    _tokenizer = Tokenizer.CreateBpe(tokenizerStream);
                 }
                 Debug.WriteLine($"[InferenceEngine] Tokenizer loaded in {sw.ElapsedMilliseconds} ms");
 
@@ -152,8 +152,7 @@ namespace Xbox_AI_Server
 
             // ── 1. Apply Phi-3 chat template and tokenize ──
             string formattedPrompt = FormatPhi3Prompt(userPrompt);
-            var    encoding        = _tokenizer.Encode(formattedPrompt);
-            var    promptTokenIds  = encoding.Ids;
+            var    promptTokenIds  = _tokenizer.EncodeToIds(formattedPrompt);
 
             // Build the running token list (prompt + generated tokens)
             var tokenIds = new List<int>(promptTokenIds);
